@@ -1,10 +1,7 @@
 #!/usr/bin/python -u
 
 """
-Code de diagonalisation exacte dans la base a np particules du tight-binding
-sur une chaine:
-
-	H = - Kina * ham_kin + Pot * ham_pot
+Code de diagonalisation exacte dans la base a np particules
 
 	* eigh : brute force
 	* eigs : Lanczos
@@ -84,14 +81,42 @@ def generate_bonds_1D(ns):
 # For 2D square lattice without spins
 def bond_2D_square(nx, ny):
 
-    bond = numpy.zeros((ns, 5), dtype="int")
+    bonds_functions = [right, left, up, down]
+
+    bond = numpy.zeros((ns, 1 + len(bonds_functions)), dtype="int")
+
     for s in numpy.arange(ns):
 
-        bond[s][0] = s #itself
-        bond[s][1] = right(s, nx, ny)
-        bond[s][2] = left(s, nx, ny)
-        bond[s][3] = up(s, nx, ny)
-        bond[s][4] = down(s, nx, ny)
+        # itself
+        bond[s][0] = s
+        for bond_num, bond_fun in enumerate(bonds_functions):
+            # first neig
+            bond[s][bond_num + 1] = bond_fun(s, nx, ny)
+
+    return bond
+
+# For 2D square lattice with spins
+def bond_2D_square_spin(nx, ny):
+
+    bonds_functions = [right, left, up, down,
+                       lambda s, nx, ny: right(s, nx, ny) + (nx * ny),
+                       lambda s, nx, ny: left(s, nx, ny) + (nx * ny),
+                       lambda s, nx, ny: up(s, nx, ny) + (nx * ny),
+                       lambda s, nx, ny: down(s, nx, ny) + (nx * ny)]
+
+    bond = numpy.zeros((2*ns, 1 + len(bonds_functions)), dtype="int")
+
+    for s in numpy.arange(ns):
+
+        # itself
+        bond[s][0] = s
+        bond[s + (nx * ny)][0] = s + (nx * ny)
+
+        for bond_num, bond_fun in enumerate(bonds_functions):
+            # spin up-up et up-down
+            bond[s][bond_num + 1] = bond_fun(s, nx, ny)
+            # spin down-up et down-down
+            bond[s + (nx * ny)][bond_num + 1] = bond_fun(s, nx, ny)
 
     return bond
 
@@ -136,6 +161,7 @@ def generate_hilbert_space(ns, np):
 
     return basis, size
 
+
 # Apply (anti)-commutation relations
 def commutation(state, s0, s1, particle=None):
 
@@ -157,22 +183,14 @@ def commutation(state, s0, s1, particle=None):
     return sign1
 
 
-def create_cluster(nx, ny, np, particle='boson', lattice='1D'):
-
-    ns = nx*ny
-    basis, size = generate_hilbert_space(ns, np)
+# H =  kina * ham_kin + Pot * ham_pot
+def gen_hamiltonian_serie4(size, bond, basis, factors):
 
     ham_pot = numpy.zeros((size, size), dtype='double')
     ham_kin = numpy.zeros((size, size), dtype='double')
 
-    if lattice is '1D':
-        bond = generate_bonds_1D(ns)
-    elif lattice is 'square':
-        bond = bond_2D_square(nx, ny)
-    elif lattice is 'triangular':
-        bond = bond_2D_triangular(nx, ny)
+    kina, pot = factors
 
-# For more comments c.f. notes in Squid notebook: Pro Num/Rascunho pag 3, 4, 5
     for w in numpy.arange(len(basis)):
         state = basis[w]
         Diag = 0
@@ -191,30 +209,51 @@ def create_cluster(nx, ny, np, particle='boson', lattice='1D'):
 
             ham_pot[w, w] = Diag
 
-    return basis, ham_pot, ham_kin
+    return (pot * ham_pot + kina * ham_kin)
 
-nx = 10		# linear size
-ny = 10
-np = 10
-Kina = 1.00			# hopping term
-Pot = 1	# n.n. interaction
+
+def create_cluster(nx, ny, np, factors, particle='boson',
+                   lattice='1D'):
+
+    ns = nx*ny
+    basis, size = generate_hilbert_space(ns, np)
+
+    if lattice is '1D':
+        bond = generate_bonds_1D(ns)
+    elif lattice is 'square':
+        bond = bond_2D_square(nx, ny)
+    elif lattice is 'triangular':
+        bond = bond_2D_triangular(nx, ny)
+
+    hamiltonian = gen_hamiltonian_serie4(size, bond, basis,
+                                         factors)
+
+    return basis, hamiltonian
+
+nx = 4		# linear size
+ny = 4
+np = 4
+kina = -1.00			# hopping term
+pot = 0	# n.n. interaction
+factors = [kina, pot]
 particle = 'fermion'
 
 ns = nx * ny
 
-basis, ham_pot, ham_kin = create_cluster(nx, ny, np,
-                                                particle, lattice='square')
+basis, hamiltonian = create_cluster(
+        nx, ny, np, factors=factors,
+        particle=particle, lattice='square')
 
 start = time.clock()
 
 #print "# ======== Diagonalization : brute force "
-#EigenEnergies , EigenVectors = eigh( Pot * ham_pot -  Kina * ham_kin )
+#EigenEnergies , EigenVectors = eigh( pot * ham_pot -  kina * ham_kin )
 #stop  = time.clock()
 #print EigenEnergies[ 0 ], " in ",stop-start," seconds"
 
 start = time.clock()
 print("# ======== Diagonalization : Lanczos")
-EigenEnergies, EigenVectors = eigs(Pot * ham_pot - Kina * ham_kin,
+EigenEnergies, EigenVectors = eigs(hamiltonian,
                                    1, None, None, 'SR', None, None, None,
                                    1.e-5)
 stop = time.clock()
