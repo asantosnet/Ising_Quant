@@ -120,7 +120,7 @@ def generate_hilbert_space(ns, np):
     size = 0
     # Generate the entire Hilbert space for a system with ns sites.
     #TODO Remove this numpy arange and create each eigenstate iteratively ?
-    for x in numpy.arange(2 ** ns):
+    for x in range(2 ** ns):
         size += (bin(x).count("1") == np) # Count those with np occupied sites
 
     print("Hilbert size : {0}".format(size))
@@ -129,7 +129,7 @@ def generate_hilbert_space(ns, np):
     size = 0
 
     # Generate the entire Hilbert space for a system with ns sites.
-    for x in numpy.arange(2 ** ns):
+    for x in range(2 ** ns):
         if bin(x).count("1") == np: # Select those with np occupied sites
             basis[size] = x # Add it to the the basis vector
             size += 1
@@ -193,17 +193,17 @@ def create_cluster(nx, ny, np, particle='boson', lattice='1D'):
 
     return basis, ham_pot, ham_kin
 
-nx = 5		# linear size
-ny = 6
-np = 4
+nx = 10		# linear size
+ny = 10
+np = 10
 Kina = 1.00			# hopping term
-Pot = 0	# n.n. interaction
+Pot = 1	# n.n. interaction
 particle = 'fermion'
 
 ns = nx * ny
 
 basis, ham_pot, ham_kin = create_cluster(nx, ny, np,
-                                                particle, lattice='triangular')
+                                                particle, lattice='square')
 
 start = time.clock()
 
@@ -234,11 +234,11 @@ for s in numpy.arange(ns):
     print("{0} \t {1}".format(s, dens))
 
 
-# Correlation matrix
-corre_mat = numpy.ones((ns, ns)) * numpy.nan
-for s in numpy.arange(ns):
-    for w in numpy.arange(ns):
-        corre_mat[s, w] = density_vect[s] * density_vect[w]
-
-print(corre_mat)
-print(numpy.mean(corre_mat, axis=1))
+## Correlation matrix
+#corre_mat = numpy.ones((ns, ns)) * numpy.nan
+#for s in numpy.arange(ns):
+#    for w in numpy.arange(ns):
+#        corre_mat[s, w] = density_vect[s] * density_vect[w]
+#
+#print(corre_mat)
+#print(numpy.mean(corre_mat, axis=1))
