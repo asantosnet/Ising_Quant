@@ -83,6 +83,7 @@ def bond_2D_square(nx, ny):
 
     bonds_functions = [right, left, up, down]
 
+    ns = nx * ny
     bond = numpy.zeros((ns, 1 + len(bonds_functions)), dtype="int")
 
     for s in numpy.arange(ns):
@@ -104,9 +105,10 @@ def bond_2D_square_spin(nx, ny):
                        lambda s, nx, ny: up(s, nx, ny) + (nx * ny),
                        lambda s, nx, ny: down(s, nx, ny) + (nx * ny)]
 
-    bond = numpy.zeros((2*ns, 1 + len(bonds_functions)), dtype="int")
+    bond = numpy.zeros((2 * (nx * ny),
+                        1 + len(bonds_functions)), dtype="int")
 
-    for s in numpy.arange(ns):
+    for s in numpy.arange(nx * ny):
 
         # itself
         bond[s][0] = s
@@ -124,6 +126,7 @@ def bond_2D_square_spin(nx, ny):
 # For 2D square lattice without spins
 def bond_2D_triangular(nx, ny):
 
+    ns = nx * ny
     bond = numpy.zeros((ns, 7), dtype="int")
     for s in numpy.arange(ns):
 
@@ -184,7 +187,8 @@ def commutation(state, s0, s1, particle=None):
 
 
 # H =  kina * ham_kin + Pot * ham_pot
-def gen_hamiltonian_serie4(size, bond, basis, factors):
+def gen_hamiltonian_serie4(size, bond, basis, factors,
+                           particle):
 
     ham_pot = numpy.zeros((size, size), dtype='double')
     ham_kin = numpy.zeros((size, size), dtype='double')
@@ -203,7 +207,8 @@ def gen_hamiltonian_serie4(size, bond, basis, factors):
                 Diag += (state & w0 > 0) * (state & w1 > 0)
                 if (state & w0 > 0) != (state & w1 > 0):
 
-                    sign = commutation(state, s0, s1, particle=particle)
+                    sign = commutation(state, s0, s1,
+                                       particle=particle)
 
                     ham_kin[w, numpy.where(basis == state ^ w0 ^ w1)] += sign
 
@@ -212,10 +217,39 @@ def gen_hamiltonian_serie4(size, bond, basis, factors):
     return (pot * ham_pot + kina * ham_kin)
 
 
+# TODO: Comment prendre en consideration dans l'axe x
+# TODO: solve memory error ?
+def gen_hamiltonian_Ising(size, bond, basis, factors,
+                          nx, ny):
+
+    ham_ech = numpy.zeros((size, size), dtype='double')
+    #ham_kin = numpy.zeros((size, size), dtype='double')
+
+    echange, champ = factors
+
+    for w in numpy.arange(len(basis)):
+        state = basis[w]
+        Diag = 0
+        for b in range(len(bond)):
+            s0 = bond[b, 0]
+            w0 = 1 << s0
+            for i in numpy.arange(1, bond.shape[1]):
+                s1 = bond[b, i]
+                w1 = 1 << s1
+                sign = (-1) ** ((s0 // (nx * ny))
+                                 + (s1 // (nx * ny)))
+                Diag += ((state & w0 > 0)
+                         * (state & w1 > 0)) * sign
+
+            ham_ech[w, w] = Diag
+
+    return (echange * ham_ech)
+
+
 def create_cluster(nx, ny, np, factors, particle='boson',
                    lattice='1D'):
 
-    ns = nx*ny
+    ns = 2 * (nx * ny)
     basis, size = generate_hilbert_space(ns, np)
 
     if lattice is '1D':
@@ -224,25 +258,36 @@ def create_cluster(nx, ny, np, factors, particle='boson',
         bond = bond_2D_square(nx, ny)
     elif lattice is 'triangular':
         bond = bond_2D_triangular(nx, ny)
+    elif lattice is 'square_spin':
+        bond = bond_2D_square_spin(nx, ny)
 
-    hamiltonian = gen_hamiltonian_serie4(size, bond, basis,
-                                         factors)
+#    hamiltonian = gen_hamiltonian_serie4(size, bond, basis,
+#                                         factors, particle)
 
+    hamiltonian = gen_hamiltonian_Ising(size, bond,
+                                        basis, factors,
+                                        nx, ny)
     return basis, hamiltonian
 
-nx = 4		# linear size
-ny = 4
+#nx = 5		# linear size
+#ny = 5
+#np = 12
+nx = 2		# linear size
+ny = 2
 np = 4
 kina = -1.00			# hopping term
 pot = 0	# n.n. interaction
 factors = [kina, pot]
+echange = 1
+champ = 0
+factors = [echange, champ]
 particle = 'fermion'
 
-ns = nx * ny
+ns = 2 * (nx * ny)
 
 basis, hamiltonian = create_cluster(
         nx, ny, np, factors=factors,
-        particle=particle, lattice='square')
+        particle=particle, lattice='square_spin')
 
 start = time.clock()
 
