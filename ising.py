@@ -254,9 +254,7 @@ def gen_hamiltonian_Ising(size, bond, basis, factors,
 
     print('Making sparse')
 
-    ham_ech = sps.csc_matrix((data * echange,
-                                (row, column)),
-                               shape = (size, size))
+    ham_ech = sps.csc_matrix((data, (row, column)), shape = (size, size))
 
     return ham_ech
 
