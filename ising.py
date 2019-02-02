@@ -241,35 +241,17 @@ def gen_hamiltonian_Ising(size, bond, basis, factors,
 
     print('Calculating bonds - field')
 
-#    row, column, data, element_id  = calculate_bonds_field(
-#            field, row, column, data, element_id,
-#            basis, bond)
+    row, column, data, element_id  = calculate_bonds_field(
+            field, row, column, data, element_id,
+            basis, bond)
 
-    print('Calculating bonds - neig interaction')
+    print('Calculating bonds - Fneig interaction')
 
-    t1 = time.clock()
-    row, column, data, element_id = calculate_bonds_f_neig(
+    (row, column,
+     data, element_id) = calculate_bonds_f_neig_opt(
             echange, row, column, data, element_id,
             basis, bond)
-    t2 = time.clock()
 
-    element_id = 0
-
-    row2 = numpy.zeros(n_el, dtype=int)
-    column2 = numpy.zeros(n_el, dtype=int)
-    data2 = numpy.zeros(n_el, dtype='double')
-
-    row2, column2, data2, element_id = calculate_bonds_f_neig_opt(
-            echange, row2, column2, data2, element_id,
-            basis, bond)
-    t3 = time.clock()
-
-    print('{}'.format(t2 - t1))
-    print('{}'.format(t3 - t2))
-
-    print(numpy.where((data - data2) != 0.0))
-    print(numpy.where((column - column2) != 0.0))
-    raise
     print('Making sparse')
 
     ham_ech = sps.csc_matrix((data * echange,
@@ -301,8 +283,8 @@ def create_cluster(nx, ny, factors, lattice='1D'):
 #np = 12
 nx = 4		# linear size
 ny = 4
-echange = -1
-champ = 3
+echange = 1
+champ = 0
 factors = [echange, champ]
 
 ns = (nx * ny)
