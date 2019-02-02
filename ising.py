@@ -156,7 +156,7 @@ def calculate_bonds_f_neig(echange, row, column,
 
     for w in numpy.arange(len(basis)):
         state = basis[w]
-        Diag = len(bond) - 1
+        Diag = 0
 
         for b in range(len(bond)):
             s0 = bond[b, 0]
@@ -165,14 +165,64 @@ def calculate_bonds_f_neig(echange, row, column,
                 s1 = bond[b, i]
                 w1 = 1 << s1
 
-                if (state & w0 > 0) != (state & w1 > 0):
-                    Diag += - 2
+                if (state & w0 > 0) == (state & w1 > 0):
+                    Diag += +1
+                else:
+                    Diag += - 1
 
         row[element_id] = w
         column[element_id] = w
         data[element_id] = Diag * echange
-
         element_id += 1
+
+    return row, column, data, element_id
+
+
+def calculate_bonds_f_neig_opt(echange, row, column,
+                               data, element_id, basis, bond):
+
+    n_elements = len(basis)
+
+    eles = numpy.arange(element_id,
+                        element_id + n_elements)
+
+    row[eles] = basis
+    column[eles] = basis
+
+    # True if spin is up or False if down
+    spin_site = (numpy.bitwise_and(
+            numpy.repeat(basis, bond.size),
+            numpy.tile(numpy.repeat(
+                    numpy.left_shift(1, bond[:, 0]),
+                    bond.shape[1]),
+                       len(basis))) > 0)
+
+    # True if spin is up or False if down
+    spin_neig = (numpy.bitwise_and(
+            numpy.repeat(basis, bond.size),
+            numpy.tile(numpy.left_shift(
+                    1, numpy.concatenate(bond)),
+                        len(basis))) > 0)
+
+    # Find all combinations (up_up, d_d_, u_d, d_u)
+    up_up = spin_site * spin_neig
+    down_down = (numpy.logical_not(spin_site)
+                 * numpy.logical_not(spin_neig))
+
+    up_down = (spin_site * numpy.logical_not(spin_neig))
+    down_up = (numpy.logical_not(spin_site) * spin_neig)
+
+    Diag = (up_up.astype(int) + down_down.astype(int)
+            - up_down.astype(int) - down_up.astype(int))
+
+    Diag = numpy.reshape(Diag, (n_elements, bond.size))
+
+    # Reduce of bond.shape[0] because in the spin_neig
+    # the site itself is also there. This adds a factor
+    # of bond.shape[0] to the sum. (i.e the number
+    # of sites in the system)
+    Diag = numpy.sum(Diag, axis=1) - bond.shape[0]
+    data[eles] = Diag * echange
 
     return row, column, data, element_id
 
@@ -191,16 +241,35 @@ def gen_hamiltonian_Ising(size, bond, basis, factors,
 
     print('Calculating bonds - field')
 
-    row, column, data, element_id  = calculate_bonds_field(
-            field, row, column, data, element_id,
-            basis, bond)
+#    row, column, data, element_id  = calculate_bonds_field(
+#            field, row, column, data, element_id,
+#            basis, bond)
 
     print('Calculating bonds - neig interaction')
 
+    t1 = time.clock()
     row, column, data, element_id = calculate_bonds_f_neig(
             echange, row, column, data, element_id,
             basis, bond)
+    t2 = time.clock()
 
+    element_id = 0
+
+    row2 = numpy.zeros(n_el, dtype=int)
+    column2 = numpy.zeros(n_el, dtype=int)
+    data2 = numpy.zeros(n_el, dtype='double')
+
+    row2, column2, data2, element_id = calculate_bonds_f_neig_opt(
+            echange, row2, column2, data2, element_id,
+            basis, bond)
+    t3 = time.clock()
+
+    print('{}'.format(t2 - t1))
+    print('{}'.format(t3 - t2))
+
+    print(numpy.where((data - data2) != 0.0))
+    print(numpy.where((column - column2) != 0.0))
+    raise
     print('Making sparse')
 
     ham_ech = sps.csc_matrix((data * echange,
