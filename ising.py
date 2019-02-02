@@ -127,23 +127,9 @@ def generate_hilbert_space(ns):
 
     return basis, size
 
-# TODO: Comment prendre en consideration dans l'axe x
-# TODO: solve memory error ? Use sparse matrix
-def gen_hamiltonian_Ising(size, bond, basis, factors,
-                          nx, ny):
 
-    n_el = size + (size * nx * ny)
-
-    row = numpy.zeros(n_el , dtype = int)
-    column = numpy.zeros(n_el , dtype = int)
-    data = numpy.zeros(n_el , dtype = 'double')
-
-    echange, champ = factors
-    element_id = 0
-
-    print('Calculating bonds')
-
-    t1 = time.clock()
+def calculate_bonds_field(field, row, column, data,
+                          element_id, basis, bond):
 
     n_non_diagonal = len(bond) * len(basis)
     eles = numpy.arange(element_id,
@@ -157,59 +143,63 @@ def gen_hamiltonian_Ising(size, bond, basis, factors,
             numpy.tile(
                     numpy.left_shift(1, bond[:, 0]),
                     len(basis)))
+
     data[eles] = champ
 
-    print(column)
-    t2 = time.clock()
+    element_id = element_id + n_non_diagonal
 
-    print('{}'.format(t2 - t1))
-
-    row = numpy.zeros(n_el , dtype = int)
-    column = numpy.zeros(n_el , dtype = int)
-    data = numpy.zeros(n_el , dtype = 'double')
+    return row, column, data, element_id
 
 
-    t1 = time.clock()
+def calculate_bonds_f_neig(echange, row, column,
+                           data, element_id, basis, bond):
 
     for w in numpy.arange(len(basis)):
         state = basis[w]
-#        Diag = len(bond) - 1
+        Diag = len(bond) - 1
 
         for b in range(len(bond)):
             s0 = bond[b, 0]
             w0 = 1 << s0
-#            for i in numpy.arange(1, bond.shape[1]):
-#                s1 = bond[b, i]
-#                w1 = 1 << s1
-#
-#                if (state & w0 > 0) != (state & w1 > 0):
-#                    Diag += - 2
+            for i in numpy.arange(1, bond.shape[1]):
+                s1 = bond[b, i]
+                w1 = 1 << s1
 
-            # Add the field operator
-            row[element_id] = w
-            column[element_id] = state ^ w0
-            data[element_id] = champ
-            element_id += 1
+                if (state & w0 > 0) != (state & w1 > 0):
+                    Diag += - 2
 
-#        eles = numpy.arange(element_id,
-#                            element_id + len(bond))
-#        row[eles] = numpy.ones(len(bond)) * w
-#        column[eles] = numpy.bitwise_xor(state,
-#              numpy.left_shift(1, bond[:, 0]))
-#        data[eles] = champ
+        row[element_id] = w
+        column[element_id] = w
+        data[element_id] = Diag * echange
 
-#        row[element_id] = w
-#        column[element_id] = w
-#        data[element_id] = Diag
-#
-#        element_id += 1
+        element_id += 1
 
-    t2 = time.clock()
-    print('{}'.format(t2 - t1))
-    print(column)
+    return row, column, data, element_id
 
-    raise
 
+def gen_hamiltonian_Ising(size, bond, basis, factors,
+                          nx, ny):
+
+    n_el = size + (size * nx * ny)
+
+    row = numpy.zeros(n_el, dtype=int)
+    column = numpy.zeros(n_el, dtype=int)
+    data = numpy.zeros(n_el, dtype='double')
+
+    echange, field = factors
+    element_id = 0
+
+    print('Calculating bonds - field')
+
+    row, column, data, element_id  = calculate_bonds_field(
+            field, row, column, data, element_id,
+            basis, bond)
+
+    print('Calculating bonds - neig interaction')
+
+    row, column, data, element_id = calculate_bonds_f_neig(
+            echange, row, column, data, element_id,
+            basis, bond)
 
     print('Making sparse')
 
@@ -240,10 +230,10 @@ def create_cluster(nx, ny, factors, lattice='1D'):
 #nx = 5		# linear size
 #ny = 5
 #np = 12
-nx = 2		# linear size
-ny = 2
+nx = 4		# linear size
+ny = 4
 echange = -1
-champ = 0
+champ = 3
 factors = [echange, champ]
 
 ns = (nx * ny)
