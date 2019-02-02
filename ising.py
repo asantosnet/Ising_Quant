@@ -16,7 +16,7 @@ Code de diagonalisation exacte dans la base spin up down completement rempli
 import time
 import numpy
 from scipy.linalg import eigh
-from scipy.sparse.linalg import eigs
+from scipy.sparse.linalg import eigs, eigsh
 from matplotlib import pyplot as plt
 import scipy.sparse as sps
 
@@ -293,6 +293,12 @@ basis, hamiltonian = create_cluster(
         nx, ny, factors=factors,
         lattice='square')
 
+start = time.clock()
+
+print("# ======== Diagonalization : brute force ")
+EigenEnergies, EigenVectors = eigsh(hamiltonian)
+stop = time.clock()
+print("{0} in {1} seconds".format(EigenEnergies[0], stop-start))
 
 start = time.clock()
 print("# ======== Diagonalization : Lanczos")
