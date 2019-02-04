@@ -143,7 +143,7 @@ def calculate_bonds_field(field, row, column, data,
                     numpy.left_shift(1, bond[:, 0]),
                     len(basis)))
 
-    data[eles] = champ
+    data[eles] = field
 
     element_id = element_id + n_non_diagonal
 
@@ -276,7 +276,8 @@ def create_cluster(nx, ny, factors, lattice='1D'):
     return basis, hamiltonian
 
 
-def calculate_density_temp(basis, eigvect, ns, part_func, eigener, T):
+def calculate_density_temp(basis, eigvect, ns, part_func,
+                           eigener, T):
 
     density_vect_t = numpy.zeros(ns)
 
@@ -321,7 +322,26 @@ def calculate_density(basis, eigvect, ns, show=True):
     return density_vect
 
 
-def calculate_mag_opt(basis, eigvect, ns, show=True):
+def calculate_mag_temp(basis, eigvect, ns, part_func,
+                       eigener, T):
+
+    mag_vect_t = numpy.zeros(ns)
+
+    for i, energy_i in enumerate(eigener):
+
+        weigth = numpy.exp(-energy_i / T) / part_func
+
+        mag_vect = calculate_mag(
+                basis, eigvect[:, i][:, None],
+                ns, show=False)
+
+        mag_vect_t = (mag_vect_t
+                          + (mag_vect * weigth))
+
+    return mag_vect_t
+
+
+def calculate_mag(basis, eigvect, ns, show=True):
 
 
     ampl = numpy.tile(
@@ -351,30 +371,7 @@ def calculate_mag_opt(basis, eigvect, ns, show=True):
     return mag_vect
 
 
-def calculate_mag(basis, eigvect, ns, show=True):
-
-    mag_vect = numpy.ones(ns)
-
-    for s in numpy.arange(ns):
-        mag = 0.0
-        for w in numpy.arange(len(eigvect[:, 0])):
-
-            amp = (eigvect[w, 0]
-                        * numpy.conj(eigvect[w, 0]))
-
-            if (((basis[w] & 1 << s) != 0)):
-
-                mag += amp
-            else:
-                mag += -amp
-
-        mag_vect[s] = mag
-        if show: print("{0} \t {1}".format(s, mag ))
-#        raise
-
-    return mag_vect
-
-
+# To optmize!!
 def calculate_corr(basis, eigvect, ns,
                    mag_vect=None):
 
@@ -411,53 +408,70 @@ def calculate_corr(basis, eigvect, ns,
     return corre_matrix
 
 
-#nx = 5		# linear size
-#ny = 5
-#np = 12
-nx = 4		# linear size
-ny = 4
-echange = -1
-champ = 0
-T=20
-factors = [echange, champ]
+def solve(nx, ny, J, h, lattice='square', kvalues=1):
 
-ns = (nx * ny)
+    ns = (nx * ny)
 
-basis, hamiltonian = create_cluster(
-        nx, ny, factors=factors,
-        lattice='square')
+    basis, hamiltonian = create_cluster(
+            nx, ny, factors=[J, h],
+            lattice=lattice)
 
-h = hamiltonian.todense()
-print(h.shape)
-start = time.clock()
+    start = time.clock()
 
-#print("# ======== Diagonalization : brute force ")
-#EigenEnergies, EigenVectors = eigh(hamiltonian.todense())
+    #print("# ======== Diagonalization : brute force ")
+    #EigenEnergies, EigenVectors = eigh(hamiltonian.todense())
 
-print("# ======== Diagonalization : Lanczos")
-EigenEnergies, EigenVectors = eigs(hamiltonian,
-                                   1, None, None, 'SR', None, None, None,
-                                   1.e-5)
+    print("# ======== Diagonalization : Lanczos")
+    eigene, eigvect = eigs(
+            hamiltonian, kvalues, None, None, 'SR', None,
+            None, None, 1.e-5)
+
+    stop = time.clock()
+    print("{0} in {1} seconds".format(eigene[0],
+          stop-start))
+
+    return eigene, eigvect, basis, ns
+
+
+###########################################################
+###########################################################
+###########################################################
+###########################################################
+
+
+eigene, eigvect, basis, ns = solve(
+        nx=4, ny=4, J=-1, h=0, lattice='square',
+        kvalues=100)
 
 # On met Kb = 1*
-part_func = numpy.sum(numpy.exp(-EigenEnergies / T))
+T=10
+part_func = numpy.sum(numpy.exp(-eigene / T))
 
-stop = time.clock()
-print("{0} in {1} seconds".format(EigenEnergies[0], stop-start))
+density_vect = calculate_density(basis, eigvect, ns,
+                                 show=False)
+density_vect_t = calculate_density_temp(basis, eigvect,
+                                        ns, part_func,
+                                        eigene, T=T)
 
-print(EigenEnergies)
-density_vect = calculate_density(basis, EigenVectors, ns,
-                                 show=True)
-#density_vect_t = calculate_density_temp(basis, EigenVectors,
-#                                        ns, part_func,
-#                                        EigenEnergies, T=T)
-#print(density_vect_t)
+mag_vect = calculate_mag(basis, eigvect, ns, show=False)
+mag_vect_t = calculate_mag_temp(basis, eigvect,
+                                ns, part_func,
+                                eigene, T=T)
+
+print(density_vect_t)
 print(density_vect)
 
-mag_vect = calculate_mag(basis, EigenVectors, ns)
-mag_vect_opt = calculate_mag_opt(basis, EigenVectors, ns)
+print(mag_vect_t)
+print(mag_vect)
 
-print(numpy.where((mag_vect - mag_vect_opt) != 0.0))
+
+
+###########################################################
+###########################################################
+###########################################################
+###########################################################
+
+
 #corre_matrix = calculate_corr(basis, EigenVectors, ns,
 #                              mag_vect=mag_vect[:, None])
 #print(corre_matrix)
