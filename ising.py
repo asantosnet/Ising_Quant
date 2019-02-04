@@ -137,7 +137,6 @@ def calculate_bonds_field(field, row, column, data,
 
     row[eles] = numpy.repeat(numpy.arange(len(basis)),
                              len(bond))
-
     column[eles] = numpy.bitwise_xor(
             numpy.repeat(basis, len(bond)),
             numpy.tile(
@@ -276,10 +275,88 @@ def create_cluster(nx, ny, factors, lattice='1D'):
 
     return basis, hamiltonian
 
+
+def calculate_density(basis, eigvect, ns, show=True):
+
+
+    density_vect = numpy.ones(ns)
+#    for i in basis: print(bin(i))
+
+    for s in numpy.arange(ns):
+        dens = 0.0
+        for w in numpy.arange(len(eigvect[:, 0])):
+            if (((basis[w] & 1 << s) != 0)):
+
+                dens += (eigvect[w, 0]
+                         * numpy.conj(eigvect[w, 0]))
+
+        density_vect[s] = dens
+        if show: print("{0} \t {1}".format(s, dens))
+#        raise
+    return density_vect
+
+
+def calculate_mag(basis, eigvect, ns, show=True):
+
+    mag_vect = numpy.ones(ns)
+
+    for s in numpy.arange(ns):
+        mag = 0.0
+        for w in numpy.arange(len(eigvect[:, 0])):
+            if (((basis[w] & 1 << s) != 0)):
+
+                mag += (eigvect[w, 0]
+                        * numpy.conj(eigvect[w, 0]))
+            else:
+                mag += -1 / len(basis)
+
+        mag_vect[s] = mag
+        if show: print("{0} \t {1}".format(s, mag ))
+#        raise
+
+    return mag_vect
+
+
+def calculate_corr(basis, eigvect, ns,
+                   mag_vect=None):
+
+    moy_spin_i_j = numpy.zeros((ns, ns))
+    for i in numpy.arange(ns):
+        for j in numpy.arange(ns):
+            corr = 0.0
+            for w in numpy.arange(len(eigvect[:, 0])):
+                is_up_i = (basis[w] & 1 << i) != 0
+                is_up_j = (basis[w] & 1 << j) != 0
+
+                if (is_up_i and is_up_j):
+                    corr += (eigvect[w, 0]
+                             * numpy.conj(eigvect[w, 0])) ** 2
+                elif (is_up_i and (not is_up_j)):
+                    corr += -(eigvect[w, 0]
+                              * numpy.conj(eigvect[w, 0])) ** 2
+                elif ((not is_up_i) and is_up_j):
+                    corr += -(eigvect[w, 0]
+                              * numpy.conj(eigvect[w, 0])) ** 2
+                else:
+                    corr += (eigvect[w, 0]
+                             * numpy.conj(eigvect[w, 0])) ** 2
+
+            moy_spin_i_j[i, j] = corr
+
+    if mag_vect is None:
+        mag_vect = calculate_mag(basis, eigvect,
+                                 ns, show=False)[:, None]
+
+    corre_matrix = (moy_spin_i_j
+                    - numpy.transpose(mag_vect) * mag_vect)
+
+    return corre_matrix
+
+
 #nx = 5		# linear size
 #ny = 5
 #np = 12
-nx = 4		# linear size
+nx = 4 		# linear size
 ny = 4
 echange = 1
 champ = 0
@@ -293,10 +370,12 @@ basis, hamiltonian = create_cluster(
 
 start = time.clock()
 
-print("# ======== Diagonalization : brute force ")
-EigenEnergies, EigenVectors = eigsh(hamiltonian)
-stop = time.clock()
-print("{0} in {1} seconds".format(EigenEnergies[0], stop-start))
+#print("# ======== Diagonalization : brute force ")
+#EigenEnergies, EigenVectors = eigsh(hamiltonian)
+#
+#print(EigenVectors)
+#stop = time.clock()
+#print("{0} in {1} seconds".format(EigenEnergies[0], stop-start))
 
 start = time.clock()
 print("# ======== Diagonalization : Lanczos")
@@ -306,18 +385,13 @@ EigenEnergies, EigenVectors = eigs(hamiltonian,
 stop = time.clock()
 print("{0} in {1} seconds".format(EigenEnergies[0], stop-start))
 
-print(EigenEnergies)
-
-density_vect = numpy.ones(ns)
-for s in numpy.arange(ns):
-    dens = 0.0
-    for w in numpy.arange(len(EigenVectors[:, 0])):
-        if (((basis[w] & 1 << 0) != 0) and ((basis[w] & 1 << s) != 0)):
-#        if (((basis[w] & 1 << s) != 0)):
-            dens += EigenVectors[w, 0] * numpy.conj(EigenVectors[w, 0])
-
-    density_vect[s] = dens
-    print("{0} \t {1}".format(s, dens))
+density_vect = calculate_density(basis, EigenVectors, ns)
+mag_vect = calculate_mag(basis, EigenVectors, ns)
+corre_matrix = calculate_corr(basis, EigenVectors, ns,
+                              mag_vect=mag_vect[:, None])
+print(corre_matrix)
+print('Average : {}'.format(numpy.average(corre_matrix)))
+print('mag_tot = {}'.format(numpy.sum(mag_vect)))
 
 ## Correlation matrix
 #corre_mat = numpy.ones((ns, ns)) * numpy.nan
