@@ -8,8 +8,6 @@ Code de diagonalisation exacte dans la base spin up down completement rempli
 	* calcul des densites moyennes sur site pour montrer aux etudiants
 	  l'invariance par translation des solutions et les effets des
 	  degenerescences
-	* faire implementer le signe fermionique (present dans ce code mais a
-	  enlever quand distribuer)
 	* faire implementer les correlations charge-chare
 
 """
@@ -19,6 +17,9 @@ from scipy.linalg import eigh
 from scipy.sparse.linalg import eigs, eigsh
 from matplotlib import pyplot as plt
 import scipy.sparse as sps
+
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
 # Define operations for a square lattice :
 def up(x, nx, ny):
@@ -128,6 +129,12 @@ def generate_hilbert_space(ns):
     return basis, size
 
 
+###########################################################
+###########################################################
+###########################################################
+###########################################################
+
+
 def calculate_bonds_field(field, row, column, data,
                           element_id, basis, bond):
 
@@ -226,6 +233,12 @@ def calculate_bonds_f_neig_opt(echange, row, column,
     return row, column, data, element_id
 
 
+###########################################################
+###########################################################
+###########################################################
+###########################################################
+
+
 def gen_hamiltonian_Ising(size, bond, basis, factors,
                           nx, ny):
 
@@ -253,9 +266,16 @@ def gen_hamiltonian_Ising(size, bond, basis, factors,
 
     print('Making sparse')
 
-    ham_ech = sps.csc_matrix((data, (row, column)), shape = (size, size))
+    ham_ech = sps.csc_matrix((data, (row, column)),
+                             shape=(size, size))
 
     return ham_ech
+
+
+###########################################################
+###########################################################
+###########################################################
+###########################################################
 
 
 def create_cluster(nx, ny, factors, lattice='1D'):
@@ -274,6 +294,12 @@ def create_cluster(nx, ny, factors, lattice='1D'):
             size, bond, basis, factors, nx, ny)
 
     return basis, hamiltonian
+
+
+###########################################################
+###########################################################
+###########################################################
+###########################################################
 
 
 def calculate_density_temp(basis, eigvect, ns, part_func,
@@ -439,31 +465,128 @@ def solve(nx, ny, J, h, lattice='square', kvalues=1):
 ###########################################################
 
 
-eigene, eigvect, basis, ns = solve(
-        nx=4, ny=4, J=-1, h=0, lattice='square',
-        kvalues=100)
+code='A_1'
+nJ = 2
+jmin = - 1.5
+jmax = 1.5
+nh = 2
+hmin = -15
+hmax = 15
+kvalues=1
+ny = 4
+nx = 4
 
-# On met Kb = 1*
-T=10
-part_func = numpy.sum(numpy.exp(-eigene / T))
+energy = numpy.zeros((nh,nJ))
+average_mag = numpy.zeros((nh,nJ))
 
-density_vect = calculate_density(basis, eigvect, ns,
-                                 show=False)
-density_vect_t = calculate_density_temp(basis, eigvect,
-                                        ns, part_func,
-                                        eigene, T=T)
 
-mag_vect = calculate_mag(basis, eigvect, ns, show=False)
-mag_vect_t = calculate_mag_temp(basis, eigvect,
-                                ns, part_func,
-                                eigene, T=T)
+config_names = numpy.array(['nx', 'ny',
+                            'lattice', 'kvalues'])
+config_values = numpy.array([nx, ny, 0, kvalues])
+h_values = numpy.linspace(hmin, hmax, nh)
+J_values = numpy.linspace(jmin, jmax, nJ)
 
-print(density_vect_t)
-print(density_vect)
+data = numpy.empty([nh, nJ], dtype='object')
+for i, J in enumerate(J_values):
+    for j, h in enumerate(h_values):
+        eigene, eigvect, basis, ns = solve(
+                nx=4, ny=4, J=J, h=h, lattice='square',
+                kvalues=kvalues)
 
-print(mag_vect_t)
-print(mag_vect)
+        energy[j,i] = eigene[0]
+        mag_vect = calculate_mag(basis, eigvect,
+                                 ns, show=False)
 
+        data[j, i] = {'eigene': eigene,
+                      'eigvect': eigvect,
+                      'basis': basis,
+                      'ns': ns,
+                      'mag_vect': mag_vect}
+
+        average_mag[j,i] = numpy.average(mag_vect)
+
+
+numpy.savez('config_ite_{0}_{1}'.format(
+            nh * nJ, code),
+            config_names=config_names,
+            config_values=config_values,
+            h_values=h_values,
+            J_values=J_values,
+            data=data,
+            energy=energy,
+            average_mag=average_mag)
+
+
+grid = numpy.column_stack((
+        numpy.repeat(numpy.arange(nJ), nh),
+        numpy.tile(numpy.arange(nh), nJ)))
+
+extent = [hmin, hmax,
+          jmin*10, jmax*10]
+
+plt.imshow(average_mag, vmin=average_mag.min(),
+           vmax=average_mag.max(), extent=extent,
+           cmap=cm.RdBu, interpolation='nearest')
+
+plt.colorbar()
+plt.show()
+
+plt.imshow(energy, vmin=energy.min(),
+           vmax=energy.max(), extent=extent,
+           cmap=cm.RdBu, interpolation='nearest')
+
+plt.colorbar()
+plt.show()
+
+
+
+
+
+#
+## On met Kb = 1*
+#nt=20
+#mag_vs_T = numpy.zeros(nt)
+#for T in range(nt):
+#
+#    if T is 0:
+#        mag_vect = calculate_mag(basis, eigvect,
+#                                 ns, show=False)
+#    else:
+#        part_func = numpy.sum(numpy.exp(-eigene / T))
+#
+#
+#        mag_vect = calculate_mag_temp(basis, eigvect,
+#                                        ns, part_func,
+#                                        eigene, T=T)
+#
+#    mag_vs_T[T] = numpy.average(mag_vect)
+#    print('Done T = {}'.format(T))
+#
+#plt.plot(numpy.arange(nt), mag_vs_T / mag_vs_T[0],
+#         'o')
+#plt.ylabel('Average magnetization')
+#plt.xlabel('Temperature')
+#plt.show()
+
+
+
+#density_vect = calculate_density(basis, eigvect, ns,
+#                                 show=False)
+#density_vect_t = calculate_density_temp(basis, eigvect,
+#                                        ns, part_func,
+#                                        eigene, T=T)
+#
+#mag_vect = calculate_mag(basis, eigvect, ns, show=False)
+#mag_vect_t = calculate_mag_temp(basis, eigvect,
+#                                ns, part_func,
+#                                eigene, T=T)
+#
+#print(density_vect_t)
+#print(density_vect)
+#
+#print(mag_vect_t)
+#print(mag_vect)
+#
 
 
 ###########################################################
