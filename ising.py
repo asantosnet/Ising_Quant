@@ -442,19 +442,19 @@ def solve(nx, ny, J, h, lattice='square', kvalues=1):
             nx, ny, factors=[J, h],
             lattice=lattice)
 
-    start = time.clock()
+#    start = time.clock()
 
     #print("# ======== Diagonalization : brute force ")
     #EigenEnergies, EigenVectors = eigh(hamiltonian.todense())
 
-    print("# ======== Diagonalization : Lanczos")
+#    print("# ======== Diagonalization : Lanczos")
     eigene, eigvect = eigs(
             hamiltonian, kvalues, None, None, 'SR', None,
             None, None, 1.e-5)
 
-    stop = time.clock()
-    print("{0} in {1} seconds".format(eigene[0],
-          stop-start))
+#    stop = time.clock()
+#    print("{0} in {1} seconds".format(eigene[0],
+#          stop-start))
 
     return eigene, eigvect, basis, ns
 
@@ -465,78 +465,141 @@ def solve(nx, ny, J, h, lattice='square', kvalues=1):
 ###########################################################
 
 
-code='A_1'
-nJ = 2
-jmin = - 1.5
-jmax = 1.5
-nh = 2
-hmin = -15
-hmax = 15
+def cal_save(code, nJ, jmin, jmax,
+             nh, hmin, hmax, kvalues, lattice, ny, nx):
+
+
+    energy = numpy.zeros((nh,nJ))
+    average_mag = numpy.zeros((nh,nJ))
+
+
+    config_names = numpy.array(['nx', 'ny',
+                                'lattice', 'kvalues'])
+    config_values = numpy.array([nx, ny, 0, kvalues])
+    h_values = numpy.linspace(hmin, hmax, nh)
+    J_values = numpy.linspace(jmin, jmax, nJ)
+
+    data = numpy.empty([nh, nJ], dtype='object')
+
+    for i, J in enumerate(J_values):
+        for j, h in enumerate(h_values):
+            eigene, eigvect, basis, ns = solve(
+                    nx=4, ny=4, J=J, h=h, lattice=lattice,
+                    kvalues=kvalues)
+
+            energy[j,i] = eigene[0]
+            mag_vect = calculate_mag(basis, eigvect,
+                                     ns, show=False)
+
+            data[j, i] = {'eigene': eigene,
+                          'eigvect': eigvect,
+                          'basis': basis,
+                          'ns': ns,
+                          'mag_vect': mag_vect}
+
+            average_mag[j,i] = numpy.average(mag_vect)
+
+    numpy.savez('config_ite_{0}_{1}'.format(
+                nh * nJ, code),
+                config_names=config_names,
+                config_values=config_values,
+                h_values=h_values,
+                J_values=J_values,
+                data=data,
+                energy=energy,
+                average_mag=average_mag)
+
+#    grid = numpy.column_stack((
+#            numpy.repeat(numpy.arange(nJ), nh),
+#            numpy.tile(numpy.arange(nh), nJ)))
+#
+#    extent = [hmin, hmax,
+#              jmin*10, jmax*10]
+#
+#    plt.imshow(average_mag, vmin=average_mag.min(),
+#               vmax=average_mag.max(), extent=extent,
+#               cmap=cm.RdBu, interpolation='nearest')
+#
+#    plt.colorbar()
+#    plt.show()
+#
+#    plt.imshow(energy, vmin=energy.min(),
+#               vmax=energy.max(), extent=extent,
+#               cmap=cm.RdBu, interpolation='nearest')
+#
+#    plt.colorbar()
+#    plt.show()
+#
+
+
+###########################################################
+###########################################################
+###########################################################
+###########################################################
+
+
+nJ = 500
+jmin = - 4
+jmax = 4
+nh = 500
+hmin = -40
+hmax = 40
 kvalues=1
 ny = 4
 nx = 4
 
-energy = numpy.zeros((nh,nJ))
-average_mag = numpy.zeros((nh,nJ))
 
+code = 'T_1'
+lattice = 'triangular'
 
-config_names = numpy.array(['nx', 'ny',
-                            'lattice', 'kvalues'])
-config_values = numpy.array([nx, ny, 0, kvalues])
-h_values = numpy.linspace(hmin, hmax, nh)
-J_values = numpy.linspace(jmin, jmax, nJ)
+cal_save(code, nJ, jmin, jmax,
+             nh, hmin, hmax, kvalues, lattice, ny, nx)
 
-data = numpy.empty([nh, nJ], dtype='object')
-for i, J in enumerate(J_values):
-    for j, h in enumerate(h_values):
-        eigene, eigvect, basis, ns = solve(
-                nx=4, ny=4, J=J, h=h, lattice='square',
-                kvalues=kvalues)
+print('Done T_1')
 
-        energy[j,i] = eigene[0]
-        mag_vect = calculate_mag(basis, eigvect,
-                                 ns, show=False)
+code = 'S_1'
+lattice = 'square'
 
-        data[j, i] = {'eigene': eigene,
-                      'eigvect': eigvect,
-                      'basis': basis,
-                      'ns': ns,
-                      'mag_vect': mag_vect}
+cal_save(code, nJ, jmin, jmax,
+             nh, hmin, hmax, kvalues, lattice, ny, nx)
 
-        average_mag[j,i] = numpy.average(mag_vect)
+print('Done S_1')
 
+code = 'S_K_100'
+kvalues== 100
+lattice = 'square'
+nJ = 50
+jmin = - 2
+jmax = 2
+nh = 50
+hmin = -20
+hmax = 20
 
-numpy.savez('config_ite_{0}_{1}'.format(
-            nh * nJ, code),
-            config_names=config_names,
-            config_values=config_values,
-            h_values=h_values,
-            J_values=J_values,
-            data=data,
-            energy=energy,
-            average_mag=average_mag)
+cal_save(code, nJ, jmin, jmax,
+             nh, hmin, hmax, kvalues, lattice, ny, nx)
 
+print('Done S_K_100')
 
-grid = numpy.column_stack((
-        numpy.repeat(numpy.arange(nJ), nh),
-        numpy.tile(numpy.arange(nh), nJ)))
-
-extent = [hmin, hmax,
-          jmin*10, jmax*10]
-
-plt.imshow(average_mag, vmin=average_mag.min(),
-           vmax=average_mag.max(), extent=extent,
-           cmap=cm.RdBu, interpolation='nearest')
-
-plt.colorbar()
-plt.show()
-
-plt.imshow(energy, vmin=energy.min(),
-           vmax=energy.max(), extent=extent,
-           cmap=cm.RdBu, interpolation='nearest')
-
-plt.colorbar()
-plt.show()
+#grid = numpy.column_stack((
+#        numpy.repeat(numpy.arange(nJ), nh),
+#        numpy.tile(numpy.arange(nh), nJ)))
+#
+#extent = [hmin, hmax,
+#          jmin*10, jmax*10]
+#
+#plt.imshow(average_mag, vmin=average_mag.min(),
+#           vmax=average_mag.max(), extent=extent,
+#           cmap=cm.RdBu, interpolation='nearest')
+#
+#plt.colorbar()
+#plt.show()
+#
+#plt.imshow(energy, vmin=energy.min(),
+#           vmax=energy.max(), extent=extent,
+#           cmap=cm.RdBu, interpolation='nearest')
+#
+#plt.colorbar()
+#plt.show()
 
 
 
